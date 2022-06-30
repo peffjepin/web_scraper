@@ -35,8 +35,12 @@ def write_bytes(data: bytes) -> pathlib.Path:
 @ensure_data_dir
 def save_records(records, output=None) -> None:
     records = tuple(records)
+    csv_lines = []
+    for record in records:
+        csv_lines.append(",".join(str(elem) for elem in record))
+    data = "\n".join(csv_lines)
     if output == STDOUT:
-        path = STDOUT
+        print(data)
     else:
         if output is None:
             path = data_dir / records[0].__class__.__name__
@@ -44,12 +48,5 @@ def save_records(records, output=None) -> None:
             path = data_dir / output
         if not path.exists():
             path.write_text(",".join(records[0]._fields) + "\n")
-    csv_lines = []
-    for record in records:
-        csv_lines.append(",".join(str(elem) for elem in record))
-    data = "\n".join(csv_lines) + "\n"
-    if path == STDOUT:
-        print(data)
-    else:
         with open(path, "a") as f:
-            f.write(data)
+            f.write(data + "\n")

@@ -59,6 +59,10 @@ class RequestCleaningTask(mpc.Signal):
     pass
 
 
+class NewJobCreated(mpc.Event):
+    job: model.Job
+
+
 class CleaningWorker(_RequestsTasksWorker):
     def request_task(self):
         self.send(RequestCleaningTask)
@@ -67,6 +71,10 @@ class CleaningWorker(_RequestsTasksWorker):
     def try_to_get_a_new_cleaning_task(self):
         if (task := runtime.get_cleaning_task()) is not None:
             self.send(task)
+
+    @mpc.handler.main(NewJobCreated)
+    def add_job_to_runtime(self, event):
+        runtime.add_job(event.job)
 
     @mpc.handler.worker(model.CleaningTask)
     def clean_raw_data(self, task):
@@ -91,7 +99,10 @@ class CleaningWorker(_RequestsTasksWorker):
 
     def _exhaust_generator(self, gen, output):
         accumulated_records = collections.defaultdict(list)
-        for rec in gen:
-            accumulated_records[type(rec)].append(rec)
+        for val in gen:
+            if isinstance(val, model.Job):
+                self.send(NewJobCreated(val))
+            else:
+                accumulated_records[type(val)].append(val)
         for records in accumulated_records.values():
             resources.save_records(records, output)
