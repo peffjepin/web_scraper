@@ -74,22 +74,24 @@ class CleaningWorker(_RequestsTasksWorker):
         raw_text = task.path.read_text()
         if isinstance(task.cleaner, model.DataCleaner):
             ret = task.cleaner.clean(raw_text)
+            out = task.cleaner.OUTPUT
         else:
             ret = task.cleaner(raw_text)
-        self._handle_cleaner_return_value(ret)
+            out = None
+        self._handle_cleaner_return_value(ret, out)
         self.send(model.CleaningTaskComplete(task.job_id))
 
     @mpc.handler.main(model.CleaningTaskComplete)
     def notify_task_complete(self, event):
         runtime.report_event(event)
 
-    def _handle_cleaner_return_value(self, value):
+    def _handle_cleaner_return_value(self, value, output):
         if isinstance(value, typing.Generator):
-            return self._exhaust_generator(value)
+            return self._exhaust_generator(value, output)
 
-    def _exhaust_generator(self, gen):
+    def _exhaust_generator(self, gen, output):
         accumulated_records = collections.defaultdict(list)
         for rec in gen:
             accumulated_records[type(rec)].append(rec)
         for records in accumulated_records.values():
-            resources.save_records(records)
+            resources.save_records(records, output)

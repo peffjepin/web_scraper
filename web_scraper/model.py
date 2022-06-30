@@ -6,6 +6,8 @@ import mpcontroller as mpc
 
 
 class DataCleaner:
+    OUTPUT = None
+
     def clean(self, text):
         raise NotImplementedError("should be implemented in child")
 
