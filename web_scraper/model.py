@@ -1,5 +1,4 @@
 import itertools
-import collections
 import pathlib
 import typing
 
@@ -9,6 +8,9 @@ import mpcontroller as mpc
 class DataCleaner:
     def clean(self, text):
         raise NotImplementedError("should be implemented in child")
+
+    def __repr__(self):
+        return self.__class__.__name__
 
     @classmethod
     def make_jobs(cls, *urls):

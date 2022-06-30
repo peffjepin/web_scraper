@@ -1,4 +1,4 @@
-import pathlib
+import collections
 import requests
 import time
 import typing
@@ -8,6 +8,7 @@ import mpcontroller as mpc
 from . import runtime
 from . import model
 from . import resources
+from .runtime import debug
 
 
 class _RequestsTasksWorker(mpc.Worker):
@@ -43,6 +44,7 @@ class WebWorker(_RequestsTasksWorker):
 
     @mpc.handler.worker(model.WebTask)
     def fetch_web_content(self, task):
+        debug(f"fetching url: {task}")
         r = requests.get(task.url)
         path = resources.write_text(r.text)
         event = model.WebTaskComplete(path, task.job_id)
@@ -68,11 +70,12 @@ class CleaningWorker(_RequestsTasksWorker):
 
     @mpc.handler.worker(model.CleaningTask)
     def clean_raw_data(self, task):
+        debug(f"cleaning data: {task}")
         raw_text = task.path.read_text()
         if isinstance(task.cleaner, model.DataCleaner):
             ret = task.cleaner.clean(raw_text)
         else:
-            ret = task.cleaner(raw_data)
+            ret = task.cleaner(raw_text)
         self._handle_cleaner_return_value(ret)
         self.send(model.CleaningTaskComplete(task.job_id))
 
@@ -81,4 +84,12 @@ class CleaningWorker(_RequestsTasksWorker):
         runtime.report_event(event)
 
     def _handle_cleaner_return_value(self, value):
-        pass
+        if isinstance(value, typing.Generator):
+            return self._exhaust_generator(value)
+
+    def _exhaust_generator(self, gen):
+        accumulated_records = collections.defaultdict(list)
+        for rec in gen:
+            accumulated_records[type(rec)].append(rec)
+        for records in accumulated_records.values():
+            resources.save_records(records)
