@@ -5,7 +5,7 @@ import typing
 import logging
 
 import mpcontroller as mpc
-
+from selenium import webdriver
 from . import runtime
 from . import model
 from . import resources
@@ -54,6 +54,29 @@ class WebWorker(_RequestsTasksWorker):
     def notify_task_complete(self, event):
         runtime.report_event(event)
 
+    @mpc.handler.worker(model.SeleniumSnapshotsTask)
+    def take_selenium_snapshots(self, task):
+        driver = webdriver.Firefox()
+        try:
+            driver.get(task.url)
+            for snapshot in task.driver_script(driver):
+                paths = {
+                    k: resources.write_text(v)
+                    for k, v in snapshot.fields.items()
+                }
+                self.send(model.SnapshotTaken(paths, task.job_id))
+            self.send(model.SeleniumSnapshotsTaskComplete(task.job_id))
+        finally:
+            driver.close()
+
+    @mpc.handler.main(model.SeleniumSnapshotsTaskComplete)
+    def notify_selenium_snapshots_finished_gathering(self, event):
+        runtime.report_event(event)
+
+    @mpc.handler.main(model.SnapshotTaken)
+    def notify_selenium_snapshot_taken(self, event):
+        runtime.report_event(event)
+
 
 class RequestCleaningTask(mpc.Signal):
     pass
@@ -80,18 +103,22 @@ class CleaningWorker(_RequestsTasksWorker):
     def clean_raw_data(self, task):
         logging.info(f"cleaning data: {task}")
         raw_text = task.path.read_text()
-        if isinstance(task.cleaner, model.DataCleaner):
-            ret = task.cleaner.clean(raw_text)
-            out = task.cleaner.OUTPUT
-        else:
-            ret = task.cleaner(raw_text)
-            out = None
-        self._handle_cleaner_return_value(ret, out)
+        ret = task.cleaner.clean_text(raw_text)
+        self._handle_cleaner_return_value(ret, task.cleaner.OUTPUT)
         self.send(model.CleaningTaskComplete(task.job_id))
 
     @mpc.handler.main(model.CleaningTaskComplete)
     def notify_task_complete(self, event):
         runtime.report_event(event)
+
+    @mpc.handler.worker(model.SnapshotCleaningTask)
+    def clean_snapshot(self, task):
+        snapshot = model.Snapshot(
+            **{k: v.read_text() for k, v in task.paths.items()}
+        )
+        ret = task.cleaner.clean_snapshot(snapshot)
+        self._handle_cleaner_return_value(ret, task.cleaner.OUTPUT)
+        self.send(model.CleaningTaskComplete(task.job_id))
 
     def _handle_cleaner_return_value(self, value, output):
         if isinstance(value, typing.Generator):

@@ -1,5 +1,4 @@
 import collections
-import dataclasses
 
 from . import model
 
@@ -26,6 +25,12 @@ class _JobBoard:
             job = self._downloading.pop(event.job_id)
             job.path = event.path
             self._cleaning_pending.append(job)
+        elif isinstance(event, model.SnapshotTaken):
+            job = self._downloading[event.job_id]
+            pending = _SnapshotCleaningPendingWrapper(job, event)
+            self._cleaning_pending.append(pending)
+        elif isinstance(event, model.SeleniumSnapshotsTaskComplete):
+            self._downloading.pop(event.job_id)
         elif isinstance(event, model.CleaningTaskComplete):
             self._parsing.pop(event.job_id)
         else:
@@ -37,8 +42,15 @@ class _JobBoard:
         except IndexError:
             return None
 
+        if isinstance(job, model.SeleniumSnapshotsJob):
+            task = model.SeleniumSnapshotsTask(
+                job.url, job.driver_script, job.id
+            )
+        else:
+            task = model.WebTask(job.url, job.id)
+
         self._downloading[job.id] = job
-        return model.WebTask(job.url, job.id)
+        return task
 
     def get_cleaning_task(self):
         try:
@@ -46,11 +58,32 @@ class _JobBoard:
         except IndexError:
             return None
 
+        if isinstance(job, _SnapshotCleaningPendingWrapper):
+            task = job.task
+        else:
+            task = model.CleaningTask(job.path, job.cleaner, job.id)
+
         self._parsing[job.id] = job
-        return model.CleaningTask(job.path, job.cleaner, job.id)
+        return task
 
     def has_pending_jobs(self):
         return any(len(cache) != 0 for cache in self._job_caches)
+
+
+class _SnapshotCleaningPendingWrapper:
+    def __init__(
+        self, job: model.SeleniumSnapshotsJob, event: model.SnapshotTaken
+    ):
+        self.id = next(model.job_counter)
+        self.task = model.SnapshotCleaningTask(
+            event.paths, job.cleaner, self.id
+        )
+
+    def __str__(self):
+        return str(self.job)
+
+    def __repr__(self):
+        return repr(self.job)
 
 
 _job_board = _JobBoard()
