@@ -53,20 +53,9 @@ class _JobBoard:
         return any(len(cache) != 0 for cache in self._job_caches)
 
 
-@dataclasses.dataclass
-class _Config:
-    debug: bool = False
-
-
-def debug(msg):
-    if config.debug:
-        print(msg)
-
-
 _job_board = _JobBoard()
 has_pending_jobs = _job_board.has_pending_jobs
 add_job = _job_board.post
 get_web_task = _job_board.get_web_task
 get_cleaning_task = _job_board.get_cleaning_task
 report_event = _job_board.report_event
-config = _Config()

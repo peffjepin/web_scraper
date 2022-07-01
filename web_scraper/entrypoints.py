@@ -1,18 +1,28 @@
 import time
 import argparse
+import logging
 
 import mpcontroller as mpc
 
 from . import runtime
 from . import workers
 
+_log_levels_map = {
+    "info": logging.INFO,
+    "debug": logging.DEBUG,
+    "error": logging.ERROR,
+    "critical": logging.CRITICAL,
+    "warning": logging.WARNING,
+}
+
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("-d", "--debug", action="store_true")
+    parser.add_argument("-l", "--logging", default="warning")
     args = parser.parse_args()
-    if args.debug:
-        runtime.config.debug = True
+    assert args.logging in _log_levels_map
+    level = _log_levels_map[args.logging]
+    logging.basicConfig(format="%(asctime)s ::: %(message)s", level=level)
 
 
 def scrape(*job_objects):

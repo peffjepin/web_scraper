@@ -2,13 +2,13 @@ import collections
 import requests
 import time
 import typing
+import logging
 
 import mpcontroller as mpc
 
 from . import runtime
 from . import model
 from . import resources
-from .runtime import debug
 
 
 class _RequestsTasksWorker(mpc.Worker):
@@ -44,7 +44,7 @@ class WebWorker(_RequestsTasksWorker):
 
     @mpc.handler.worker(model.WebTask)
     def fetch_web_content(self, task):
-        debug(f"fetching url: {task}")
+        logging.info(f"fetching url: {task}")
         r = requests.get(task.url)
         path = resources.write_text(r.text)
         event = model.WebTaskComplete(path, task.job_id)
@@ -78,7 +78,7 @@ class CleaningWorker(_RequestsTasksWorker):
 
     @mpc.handler.worker(model.CleaningTask)
     def clean_raw_data(self, task):
-        debug(f"cleaning data: {task}")
+        logging.info(f"cleaning data: {task}")
         raw_text = task.path.read_text()
         if isinstance(task.cleaner, model.DataCleaner):
             ret = task.cleaner.clean(raw_text)
