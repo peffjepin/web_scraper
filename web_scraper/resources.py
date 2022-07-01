@@ -1,5 +1,4 @@
 import pathlib
-import sys
 import typing
 import itertools
 
@@ -33,12 +32,13 @@ def write_bytes(data: bytes) -> pathlib.Path:
 
 
 @ensure_data_dir
-def save_records(records, output=None) -> None:
+def save_records(records, output=None, format="csv") -> None:
     records = tuple(records)
-    csv_lines = []
-    for record in records:
-        csv_lines.append(",".join(str(elem) for elem in record))
-    data = "\n".join(csv_lines)
+    if format == "csv":
+        fmt = _record_to_csv
+    elif format == "repr":
+        fmt = repr
+    data = "\n".join(map(fmt, records))
     if output == STDOUT:
         print(data)
     else:
@@ -46,7 +46,11 @@ def save_records(records, output=None) -> None:
             path = data_dir / records[0].__class__.__name__
         else:
             path = data_dir / output
-        if not path.exists():
+        if not path.exists() and format == "csv":
             path.write_text(",".join(records[0]._fields) + "\n")
         with open(path, "a") as f:
             f.write(data + "\n")
+
+
+def _record_to_csv(record):
+    return ",".join(str(elem) for elem in record)

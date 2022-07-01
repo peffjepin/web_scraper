@@ -104,7 +104,7 @@ class CleaningWorker(_RequestsTasksWorker):
         logging.info(f"cleaning data: {task}")
         raw_text = task.path.read_text()
         ret = task.cleaner.clean_text(raw_text)
-        self._handle_cleaner_return_value(ret, task.cleaner.OUTPUT)
+        self._handle_cleaner_return_value(ret, task.cleaner)
         self.send(model.CleaningTaskComplete(task.job_id))
 
     @mpc.handler.main(model.CleaningTaskComplete)
@@ -117,14 +117,14 @@ class CleaningWorker(_RequestsTasksWorker):
             **{k: v.read_text() for k, v in task.paths.items()}
         )
         ret = task.cleaner.clean_snapshot(snapshot)
-        self._handle_cleaner_return_value(ret, task.cleaner.OUTPUT)
+        self._handle_cleaner_return_value(ret, task.cleaner)
         self.send(model.CleaningTaskComplete(task.job_id))
 
-    def _handle_cleaner_return_value(self, value, output):
+    def _handle_cleaner_return_value(self, value, cleaner):
         if isinstance(value, typing.Generator):
-            return self._exhaust_generator(value, output)
+            return self._exhaust_generator(value, cleaner)
 
-    def _exhaust_generator(self, gen, output):
+    def _exhaust_generator(self, gen, cleaner):
         accumulated_records = collections.defaultdict(list)
         for val in gen:
             if isinstance(val, model.Job):
@@ -132,4 +132,4 @@ class CleaningWorker(_RequestsTasksWorker):
             else:
                 accumulated_records[type(val)].append(val)
         for records in accumulated_records.values():
-            resources.save_records(records, output)
+            resources.save_records(records, cleaner.OUTPUT, cleaner.FORMAT)

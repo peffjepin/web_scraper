@@ -9,6 +9,7 @@ import mpcontroller as mpc
 
 class DataCleaner:
     OUTPUT = None
+    FORMAT = "csv"
 
     def clean_text(self, text: str):
         raise NotImplementedError("should be implemented in child")
